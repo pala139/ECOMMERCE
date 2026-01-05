@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Commerce API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        
+        .response h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .response-body {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+            color: #333;
+        }
+        
+        .success {
+            color: #27ae60;
+            font-weight: 600;
+        }
+        
+        .error {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+        
+        .token-display {
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 5px;
+            word-break: break-all;
+            font-size: 0.85em;
+            margin-top: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            width: auto;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 E-Commerce API Tester</h1>
+            <p>Test your Spring Boot REST API directly from the browser</p>
+        </div>
+        
+        <div class="content">
+            <!-- Authentication Section -->
+            <div class="section">
+                <h2>🔐 Authentication</h2>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('register')">Register</button>
+                    <button class="tab-btn" onclick="switchTab('login')">Login</button>
+                </div>
+                
+                <!-- Register Tab -->
+                <div id="register" class="tab-content active">
+                    <form onsubmit="register(event)">
+                        <div class="form-group">
+                            <label>Email:</label>
+                            <input type="email" id="regEmail" placeholder="user@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password:</label>
+                            <input type="password" id="regPassword" placeholder="Password123!" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Name:</label>
+                            <input type="text" id="regName" placeholder="John Doe" required>
+                        </div>
+                        <button type="submit">Register</button>
+                    </form>
+                    <div id="registerResponse"></div>
+                </div>
+                
+                <!-- Login Tab -->
+                <div id="login" class="tab-content">
+                    <form onsubmit="login(event)">
+                        <div class="form-group">
+                            <label>Email:</label>
+                            <input type="email" id="loginEmail" placeholder="user@example.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password:</label>
+                            <input type="password" id="loginPassword" placeholder="Password123!" required>
+                        </div>
+                        <button type="submit">Login</button>
+                    </form>
+                    <div id="loginResponse"></div>
+                </div>
+            </div>
+            
+            <!-- Products Section -->
+            <div class="section">
+                <h2>📦 Products</h2>
+                
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('listProducts')">List</button>
+                    <button class="tab-btn" onclick="switchTab('createProduct')">Create</button>
+                </div>
+                
+                <!-- List Products -->
+                <div id="listProducts" class="tab-content active">
+                    <button onclick="getProducts()">Load Products</button>
+                    <div id="productsResponse"></div>
+                </div>
+                
+                <!-- Create Product -->
+                <div id="createProduct" class="tab-content">
+                    <form onsubmit="createProduct(event)">
+                        <div class="form-group">
+                            <label>Name:</label>
+                            <input type="text" id="prodName" placeholder="Laptop" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Price:</label>
+                            <input type="number" id="prodPrice" placeholder="999.99" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Stock Quantity:</label>
+                            <input type="number" id="prodStock" placeholder="10" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Category ID:</label>
+                            <input type="number" id="prodCategory" placeholder="1" required>
+                        </div>
+                        <button type="submit">Create Product</button>
+                    </form>
+                    <div id="createProductResponse"></div>
+                </div>
+            </div>
+            
+            <!-- Categories Section -->
+            <div class="section">
+                <h2>📂 Categories</h2>
+                <button onclick="getCategories()">Load Categories</button>
+                <div id="categoriesResponse"></div>
+            </div>
+            
+            <!-- Orders Section -->
+            <div class="section">
+                <h2>🛍️ Orders</h2>
+                <form onsubmit="createOrder(event)">
+                    <div class="form-group">
+                        <label>Product ID:</label>
+                        <input type="number" id="orderProduct" placeholder="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Quantity:</label>
+                        <input type="number" id="orderQuantity" placeholder="2" required>
+                    </div>
+                    <button type="submit">Create Order</button>
+                </form>
+                <div id="orderResponse"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8080';
+        let authToken = localStorage.getItem('authToken') || '';
+        
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(el => {
+                el.classList.remove('active');
+            });
+            // Remove active class from all buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        async function register(e) {
+            e.preventDefault();
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const name = document.getElementById('regName').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, name })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    showResponse('registerResponse', data, true);
+                } else {
+                    showResponse('registerResponse', data, false);
+                }
+            } catch (error) {
+                showResponse('registerResponse', { error: error.message }, false);
+            }
+        }
+        
+        async function login(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    showResponse('loginResponse', data, true);
+                } else {
+                    showResponse('loginResponse', data, false);
+                }
+            } catch (error) {
+                showResponse('loginResponse', { error: error.message }, false);
+            }
+        }
+        
+        async function getProducts() {
+            try {
+                const response = await fetch(`${API_URL}/products`);
+                const data = await response.json();
+                showResponse('productsResponse', data, response.ok);
+            } catch (error) {
+                showResponse('productsResponse', { error: error.message }, false);
+            }
+        }
+        
+        async function createProduct(e) {
+            e.preventDefault();
+            if (!authToken) {
+                alert('Please login first!');
+                return;
+            }
+            
+            const name = document.getElementById('prodName').value;
+            const price = document.getElementById('prodPrice').value;
+            const stockQuantity = document.getElementById('prodStock').value;
+            const categoryId = document.getElementById('prodCategory').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/products`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ name, price, stockQuantity, categoryId })
+                });
+                const data = await response.json();
+                showResponse('createProductResponse', data, response.ok);
+            } catch (error) {
+                showResponse('createProductResponse', { error: error.message }, false);
+            }
+        }
+        
+        async function getCategories() {
+            try {
+                const response = await fetch(`${API_URL}/categories`);
+                const data = await response.json();
+                showResponse('categoriesResponse', data, response.ok);
+            } catch (error) {
+                showResponse('categoriesResponse', { error: error.message }, false);
+            }
+        }
+        
+        async function createOrder(e) {
+            e.preventDefault();
+            if (!authToken) {
+                alert('Please login first!');
+                return;
+            }
+            
+            const productId = document.getElementById('orderProduct').value;
+            const quantity = document.getElementById('orderQuantity').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({ items: [{ productId, quantity }] })
+                });
+                const data = await response.json();
+                showResponse('orderResponse', data, response.ok);
+            } catch (error) {
+                showResponse('orderResponse', { error: error.message }, false);
+            }
+        }
+        
+        function showResponse(elementId, data, isSuccess) {
+            const element = document.getElementById(elementId);
+            const statusClass = isSuccess ? 'success' : 'error';
+            const statusText = isSuccess ? '✅ Success' : '❌ Error';
+            
+            element.innerHTML = `
+                <div class="response">
+                    <h3 class="${statusClass}">${statusText}</h3>
+                    <div class="response-body">${JSON.stringify(data, null, 2)}</div>
+                    ${data.token ? `<div class="token-display"><strong>Token:</strong> ${data.token}</div>` : ''}
+                </div>
+            `;
+        }
+        
+        // Show stored token on load
+        window.onload = function() {
+            if (authToken) {
+                console.log('Loaded token from storage:', authToken.substring(0, 20) + '...');
+            }
+        };
+    </script>
+</body>
+</html>
