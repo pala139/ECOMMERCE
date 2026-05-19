@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: ecommerce-backend
+    runtime: java
+    buildCommand: mvn clean install
+    startCommand: java -jar target/ecommerce-backend-1.0.0.jar
