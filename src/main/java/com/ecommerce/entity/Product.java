@@ -7,14 +7,10 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * Product entity represents an item for sale.
- * Why this class exists: Core entity storing product information for catalog and orders.
- * Single Responsibility: Store product details, pricing, and inventory.
- */
 @Entity
 @Table(name = "products")
-@Data
+@lombok.Getter
+@lombok.Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Product {
@@ -29,7 +25,7 @@ public class Product {
     @Column(length = 1000)
     private String description;
     
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal price;
     
     // Stock management: quantity available in inventory

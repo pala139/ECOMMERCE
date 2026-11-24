@@ -1,160 +1,129 @@
 package com.ecommerce.service;
 
-import com.ecommerce.dto.OrderDTO;
-import com.ecommerce.dto.OrderItemDTO;
-import com.ecommerce.dto.CreateOrderRequest;
-import com.ecommerce.entity.Order;
-import com.ecommerce.entity.OrderItem;
-import com.ecommerce.entity.Product;
-import com.ecommerce.entity.User;
-import com.ecommerce.repository.OrderRepository;
-import com.ecommerce.repository.ProductRepository;
-import com.ecommerce.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.ecommerce.dto.*;
+import com.ecommerce.entity.*;
+import com.ecommerce.exception.ApiException;
+import com.ecommerce.exception.InsufficientStockException;
+import com.ecommerce.repository.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
 
-/**
- * OrderService handles order operations.
- * Why this class exists: Complex logic for order creation and management.
- * Single Responsibility: Handle order CRUD and business logic.
- * 
- * Request flow for creating order:
- * 1. Client sends order request with items and shipping address
- * 2. Service fetches authenticated user
- * 3. For each item:
- *    a. Fetch product from database
- *    b. Check stock availability
- *    c. Create OrderItem with current product price (frozen in time)
- *    d. Decrement product stock
- * 4. Create Order with all items
- * 5. Calculate total amount (sum of all item subtotals)
- * 6. Return order to client
- * 
- * Interview talking point:
- * - Why store priceAtPurchase in OrderItem? Product price changes shouldn't affect past orders
- * - Why generate orderNumber? Users need a human-readable reference (timestamps are ugly)
- * - Why check stock before order? Prevent overselling
- * - Why transaction? If one item fails, whole order fails - keep data consistent
- *   (In production, add @Transactional annotation)
- */
 @Service
 public class OrderService {
-    
-    @Autowired
-    private OrderRepository orderRepository;
-    
-    @Autowired
-    private ProductRepository productRepository;
-    
-    @Autowired
-    private UserRepository userRepository;
-    
-    @Autowired
-    private ProductService productService;
-    
-    /**
-     * Create a new order for authenticated user.
-     */
-    public OrderDTO createOrder(String userEmail, CreateOrderRequest request) {
-        // Find user by email (set by JWT filter)
-        User user = userRepository.findByEmail(userEmail)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        // Create order entity
+    private final OrderRepository orders;
+    private final ProductRepository products;
+    private final UserRepository users;
+    private final ObjectMapper mapper;
+
+    public OrderService(OrderRepository orders, ProductRepository products,
+            UserRepository users, ObjectMapper mapper) {
+        this.orders = orders;
+        this.products = products;
+        this.users = users;
+        this.mapper = mapper;
+    }
+
+    @Transactional
+    public OrderDTO createOrder(String email, String key, CreateOrderRequest request) {
+        if (key == null || key.isBlank() || key.length() > 128) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Idempotency-Key must contain 1-128 characters");
+        }
+        // Serialize retries for one customer; product locks protect stock across customers.
+        User user = users.findForCheckout(email).orElseThrow(() -> notFound("User"));
+        String hash = requestHash(request);
+        Optional<Order> previous = orders.findByUserIdAndIdempotencyKey(user.getId(), key);
+        if (previous.isPresent()) {
+            if (!hash.equals(previous.get().getRequestHash())) {
+                throw new ApiException(HttpStatus.CONFLICT, "Idempotency key already used for a different request");
+            }
+            return toDto(previous.get());
+        }
+
+        // Merge duplicate items and acquire locks in ascending product ID order.
+        Map<Long, Integer> quantities = new TreeMap<>();
+        for (var item : request.getItems()) {
+            quantities.merge(item.getProductId(), item.getQuantity(), Math::addExact);
+        }
         Order order = new Order();
         order.setUser(user);
-        order.setOrderNumber(generateOrderNumber());
+        order.setOrderNumber("ORD-" + UUID.randomUUID());
+        order.setIdempotencyKey(key);
+        order.setRequestHash(hash);
         order.setShippingAddress(request.getShippingAddress());
         order.setShippingCity(request.getShippingCity());
         order.setShippingState(request.getShippingState());
         order.setShippingZipCode(request.getShippingZipCode());
-        
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        
-        // Process each item in the order
-        for (CreateOrderRequest.OrderItemRequest itemRequest : request.getItems()) {
-            Product product = productRepository.findById(itemRequest.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-            
-            // Check stock before adding to order
-            if (product.getStockQuantity() < itemRequest.getQuantity()) {
-                throw new RuntimeException("Insufficient stock for product: " + product.getName());
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (var entry : quantities.entrySet()) {
+            Product product = products.findForUpdate(entry.getKey()).orElseThrow(() -> notFound("Product"));
+            int quantity = entry.getValue();
+            if (product.getStockQuantity() < quantity) {
+                throw new InsufficientStockException(product.getName(), quantity, product.getStockQuantity());
             }
-            
-            // Create order item with frozen price
-            OrderItem orderItem = new OrderItem();
-            orderItem.setOrder(order);
-            orderItem.setProduct(product);
-            orderItem.setQuantity(itemRequest.getQuantity());
-            orderItem.setPriceAtPurchase(product.getPrice());
-            
-            order.getItems().add(orderItem);
-            
-            // Add to total
-            totalAmount = totalAmount.add(orderItem.getSubtotal());
-            
-            // Decrement stock
-            productService.decrementStock(itemRequest.getProductId(), itemRequest.getQuantity());
+            product.setStockQuantity(product.getStockQuantity() - quantity);
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setProduct(product);
+            item.setQuantity(quantity);
+            item.setPriceAtPurchase(product.getPrice());
+            order.getItems().add(item);
+            total = total.add(item.getSubtotal());
         }
-        
-        // Set total and save order
-        order.setTotalAmount(totalAmount);
-        order = orderRepository.save(order);
-        
-        return convertToDTO(order);
+        order.setTotalAmount(total);
+        return toDto(orders.saveAndFlush(order));
     }
-    
-    /**
-     * Get order by ID (for order details).
-     */
-    public OrderDTO getOrderById(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-            .orElseThrow(() -> new RuntimeException("Order not found"));
-        return convertToDTO(order);
+
+    @Transactional(readOnly = true)
+    public OrderDTO getOrderById(Long id, String email) {
+        return toDto(orders.findByIdAndUserEmail(id, email).orElseThrow(() -> notFound("Order")));
     }
-    
-    /**
-     * Get all orders for a user.
-     */
-    public List<OrderDTO> getUserOrders(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-            .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        return orderRepository.findByUserId(user.getId())
-            .stream()
-            .map(this::convertToDTO)
-            .collect(Collectors.toList());
+
+    @Transactional(readOnly = true)
+    public List<OrderDTO> getUserOrders(String email) {
+        User user = users.findByEmail(email).orElseThrow(() -> notFound("User"));
+        return orders.findByUserId(user.getId()).stream().map(this::toDto).toList();
     }
-    
-    /**
-     * Update order status (PENDING -> CONFIRMED -> SHIPPED -> DELIVERED).
-     */
-    public OrderDTO updateOrderStatus(Long orderId, String newStatus) {
-        Order order = orderRepository.findById(orderId)
-            .orElseThrow(() -> new RuntimeException("Order not found"));
-        
-        order.setStatus(newStatus);
-        order = orderRepository.save(order);
-        
-        return convertToDTO(order);
+
+    @Transactional
+    public OrderDTO updateOrderStatus(Long id, OrderStatus next) {
+        Order order = orders.findForUpdate(id).orElseThrow(() -> notFound("Order"));
+        OrderStatus current = OrderStatus.valueOf(order.getStatus());
+        if (current == next) return toDto(order);
+        if (!current.canTransitionTo(next)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Invalid order status transition");
+        }
+        if (next == OrderStatus.CANCELLED) {
+            order.getItems().stream().sorted(Comparator.comparing(i -> i.getProduct().getId())).forEach(item -> {
+                Product product = products.findForUpdate(item.getProduct().getId()).orElseThrow(() -> notFound("Product"));
+                product.setStockQuantity(Math.addExact(product.getStockQuantity(), item.getQuantity()));
+            });
+        }
+        order.setStatus(next.name());
+        return toDto(order);
     }
-    
-    /**
-     * Generate unique order number (ORD-UUID).
-     * Why? Humans need readable references, not database IDs.
-     */
-    private String generateOrderNumber() {
-        return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+
+    private String requestHash(CreateOrderRequest request) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(mapper.writeValueAsBytes(request)));
+        } catch (NoSuchAlgorithmException | JsonProcessingException ex) {
+            throw new IllegalStateException("Could not fingerprint order request", ex);
+        }
     }
-    
-    /**
-     * Helper: convert Order entity to OrderDTO with nested items.
-     */
-    private OrderDTO convertToDTO(Order order) {
+
+    private ApiException notFound(String resource) {
+        return new ApiException(HttpStatus.NOT_FOUND, resource + " not found");
+    }
+
+    private OrderDTO toDto(Order order) {
         OrderDTO dto = new OrderDTO();
         dto.setId(order.getId());
         dto.setOrderNumber(order.getOrderNumber());
@@ -165,26 +134,16 @@ public class OrderService {
         dto.setShippingCity(order.getShippingCity());
         dto.setShippingState(order.getShippingState());
         dto.setShippingZipCode(order.getShippingZipCode());
-        
-        // Convert items
-        dto.setItems(order.getItems().stream()
-            .map(this::convertItemToDTO)
-            .collect(Collectors.toList()));
-        
-        return dto;
-    }
-    
-    /**
-     * Helper: convert OrderItem entity to OrderItemDTO.
-     */
-    private OrderItemDTO convertItemToDTO(OrderItem item) {
-        OrderItemDTO dto = new OrderItemDTO();
-        dto.setId(item.getId());
-        dto.setProductId(item.getProduct().getId());
-        dto.setProductName(item.getProduct().getName());
-        dto.setQuantity(item.getQuantity());
-        dto.setPriceAtPurchase(item.getPriceAtPurchase());
-        dto.setSubtotal(item.getSubtotal());
+        dto.setItems(order.getItems().stream().map(item -> {
+            OrderItemDTO line = new OrderItemDTO();
+            line.setId(item.getId());
+            line.setProductId(item.getProduct().getId());
+            line.setProductName(item.getProduct().getName());
+            line.setQuantity(item.getQuantity());
+            line.setPriceAtPurchase(item.getPriceAtPurchase());
+            line.setSubtotal(item.getSubtotal());
+            return line;
+        }).toList());
         return dto;
     }
 }

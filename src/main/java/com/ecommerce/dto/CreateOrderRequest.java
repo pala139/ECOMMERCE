@@ -10,23 +10,14 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * CreateOrderRequest - what client sends to create an order.
- * Contains list of items (product ID + quantity) and shipping address.
- * 
- * Validation:
- * - @NotEmpty: List cannot be empty
- * - @Valid: Recursively validate nested OrderItemRequest objects
- * - @NotBlank: Address fields cannot be empty
- * - @Size: Zip code must be reasonable length
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreateOrderRequest {
     @NotEmpty(message = "Order must contain at least one item")
     @Valid
-    private java.util.List<OrderItemRequest> items;
+    @Size(max = 100)
+    private java.util.List<@NotNull OrderItemRequest> items;
     
     @NotBlank(message = "Shipping address is required")
     @Size(min = 5, max = 200, message = "Address must be between 5 and 200 characters")
@@ -54,6 +45,7 @@ public class CreateOrderRequest {
         
         @NotNull(message = "Quantity is required")
         @Min(value = 1, message = "Quantity must be at least 1")
+        @jakarta.validation.constraints.Max(100000)
         private Integer quantity;
     }
 }

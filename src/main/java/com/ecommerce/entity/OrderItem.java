@@ -6,15 +6,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
-/**
- * OrderItem entity represents individual products in an order.
- * Why this class exists: Store line items for orders - what products were ordered and in what quantity.
- * Single Responsibility: Track product quantities and prices for each order.
- * This is separate from Product because price may change after order is placed.
- */
 @Entity
 @Table(name = "order_items")
-@Data
+@lombok.Getter
+@lombok.Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderItem {
@@ -36,7 +31,7 @@ public class OrderItem {
     private Integer quantity;
     
     // Store price at time of order - insulates from future price changes
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal priceAtPurchase;
     
     // Helper method to calculate total for this line item
