@@ -1,86 +1,38 @@
 package com.ecommerce.controller;
 
-import com.ecommerce.dto.ProductDTO;
-import com.ecommerce.dto.CreateProductRequest;
+import com.ecommerce.dto.*;
+import com.ecommerce.exception.ApiException;
 import com.ecommerce.service.ProductService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.*;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import java.util.Set;
 
-/**
- * ProductController exposes product operations via REST API.
- * Why this class exists: HTTP endpoint handler for product CRUD.
- * Single Responsibility: Handle HTTP requests/responses for products.
- * 
- * Request flow:
- * 1. GET /products - List all products
- * 2. GET /products/{id} - Get product details
- * 3. GET /products/search?keyword=... - Search products
- * 4. GET /products/category/{categoryId} - Products in category
- * 5. POST /products - Create product (admin only, but we keep it simple)
- * 
- * Interview talking point:
- * - Consistent REST naming: plural nouns for collections
- * - HTTP methods: GET (read), POST (create), PUT (update), DELETE (delete)
- * - Controller delegates all logic to service
- * - Response entities allow control of HTTP status codes
- */
 @RestController
 @RequestMapping("/products")
-@CrossOrigin(origins = "*")
 public class ProductController {
-    
-    @Autowired
-    private ProductService productService;
-    
-    /**
-     * GET /products - List all products.
-     */
+    private final ProductService products;
+    public ProductController(ProductService products) { this.products = products; }
+
     @GetMapping
-    public ResponseEntity<List<ProductDTO>> getAllProducts() {
-        List<ProductDTO> products = productService.getAllProducts();
-        return ResponseEntity.ok(products);
+    public PageResponse<ProductDTO> list(@RequestParam(defaultValue="0") int page,
+            @RequestParam(defaultValue="20") int size, @RequestParam(defaultValue="id") String sort,
+            @RequestParam(defaultValue="asc") String direction,
+            @RequestParam(required=false) String keyword, @RequestParam(required=false) Long categoryId) {
+        if (page < 0 || size < 1 || size > 100 || !Set.of("id","name","price").contains(sort)
+                || !Set.of("asc","desc").contains(direction)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid pagination or sort");
+        }
+        Sort ordering = Sort.by(Sort.Direction.fromString(direction), sort);
+        if (!sort.equals("id")) ordering = ordering.and(Sort.by("id"));
+        Page<ProductDTO> result = products.findProducts(keyword, categoryId, PageRequest.of(page, size, ordering));
+        return PageResponse.from(result);
     }
-    
-    /**
-     * GET /products/{id} - Get product by ID.
-     */
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
-        ProductDTO product = productService.getProductById(id);
-        return ResponseEntity.ok(product);
-    }
-    
-    /**
-     * GET /products/search?keyword=xxx - Search products by name.
-     */
-    @GetMapping("/search")
-    public ResponseEntity<List<ProductDTO>> searchProducts(@RequestParam String keyword) {
-        List<ProductDTO> products = productService.searchProducts(keyword);
-        return ResponseEntity.ok(products);
-    }
-    
-    /**
-     * GET /products/category/{categoryId} - Get products in category.
-     */
-    @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<ProductDTO>> getProductsByCategory(@PathVariable Long categoryId) {
-        List<ProductDTO> products = productService.getProductsByCategory(categoryId);
-        return ResponseEntity.ok(products);
-    }
-    
-    /**
-     * POST /products - Create new product.
-     * Request: { name, description, price, stockQuantity, categoryId }
-     * Response: ProductDTO
-     * @Valid triggers validation of CreateProductRequest
-     */
+    public ProductDTO getProductById(@PathVariable Long id) { return products.getProductById(id); }
     @PostMapping
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody CreateProductRequest request) {
-        ProductDTO product = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(product);
+        return ResponseEntity.status(HttpStatus.CREATED).body(products.createProduct(request));
     }
 }

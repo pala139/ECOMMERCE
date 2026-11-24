@@ -9,14 +9,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Order entity represents a customer's purchase.
- * Why this class exists: Track customer orders, status, and payment information.
- * Single Responsibility: Store order header information and relationships to items.
- */
 @Entity
-@Table(name = "orders")
-@Data
+@Table(name = "orders", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "idempotency_key"}))
+@lombok.Getter
+@lombok.Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Order {
@@ -29,15 +25,20 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String orderNumber; // Unique order identifier for customers
     
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalAmount;
+
+    @Column(length = 128)
+    private String idempotencyKey;
+    @Column(length = 64)
+    private String requestHash;
     
     // Status: PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED
     @Column(nullable = false)
-    private String status;
+    private String status = "PENDING";
     
     // Delivery address (may differ from user's default address)
     private String shippingAddress;
@@ -61,7 +62,6 @@ public class Order {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
-        status = "PENDING"; // Default status
     }
     
     @PreUpdate

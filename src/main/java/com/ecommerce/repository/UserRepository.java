@@ -4,13 +4,11 @@ import com.ecommerce.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
-/**
- * UserRepository handles database queries for User entity.
- * Why this interface exists: Spring Data JPA provides automatic implementation for common CRUD operations.
- * This reduces boilerplate code and provides type-safe database access.
- */
 public interface UserRepository extends JpaRepository<User, Long> {
-    
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select u from User u where u.email = :email")
+    java.util.Optional<User> findForCheckout(@org.springframework.data.repository.query.Param("email") String email);
+
     // Custom query: find user by email (for login)
     Optional<User> findByEmail(String email);
 }

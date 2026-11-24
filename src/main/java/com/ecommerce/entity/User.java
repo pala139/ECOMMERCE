@@ -6,14 +6,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
-/**
- * User entity represents a customer in the system.
- * Why this class exists: Core entity to store user authentication and profile data.
- * Single Responsibility: Store user account information and authentication details.
- */
 @Entity
 @Table(name = "users")
-@Data
+@lombok.Getter
+@lombok.Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class User {
@@ -26,10 +22,14 @@ public class User {
     private String email;
     
     @Column(nullable = false)
-    private String password; // Will be encrypted by AuthService
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String password;
     
     @Column(nullable = false)
     private String name;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Role role = Role.CUSTOMER;
     
     private String phoneNumber;
     

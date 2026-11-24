@@ -1,93 +1,54 @@
 package com.ecommerce.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import java.util.Arrays;
+import org.springframework.web.cors.*;
+import java.util.List;
 
-/**
- * SecurityConfig sets up Spring Security for the application.
- * Why this class exists: Configure which endpoints need authentication and which are public.
- * Single Responsibility: Define security rules and filters.
- * 
- * Interview talking point:
- * - We use stateless authentication (no sessions, JWT-based)
- * - Authentication filter runs before every request
- * - Public endpoints like /auth/register and /auth/login don't need JWT
- */
 @Configuration
 public class SecurityConfig {
-    
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-    
-    /**
-     * PasswordEncoder: encrypt passwords before storing in database.
-     * BCrypt is the Spring Security standard - it's slow by design to prevent brute force attacks.
-     */
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-    
-    /**
-     * CORS Configuration: allow browser requests from any origin.
-     * In production, specify allowed origins instead of "*".
-     */
+    PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
     @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(false);
-        configuration.setMaxAge(3600L);
-        
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.origins:http://localhost:3000}") String origins) {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of(origins.split(",")));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
-    
-    /**
-     * SecurityFilterChain: define which endpoints are public vs protected.
-     */
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            // Enable CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            
-            // Disable CSRF (we're using JWT, not session cookies)
-            .csrf(csrf -> csrf.disable())
-            
-            // Configure authentication and authorization
-            .authorizeHttpRequests(authz -> authz
-                // Public endpoints - anyone can access
-                .requestMatchers("/auth/register", "/auth/login").permitAll()
-                .requestMatchers("/products/**").permitAll()
-                .requestMatchers("/categories/**").permitAll()
-                
-                // Protected endpoints - need authentication
-                .anyRequest().permitAll()
-            )
-            
-            // Use stateless session (JWT doesn't need sessions)
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            
-            // Add JWT filter before Spring Security's default auth filter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        
-        return http.build();
+    SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter filter,
+            @Qualifier("corsConfigurationSource") CorsConfigurationSource cors) throws Exception {
+        return http.cors(c -> c.configurationSource(cors))
+            .csrf(c -> c.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(e -> e.authenticationEntryPoint((req, res, ex) -> res.sendError(401))
+                .accessDeniedHandler((req, res, ex) -> res.sendError(403)))
+            .authorizeHttpRequests(a -> a
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
+                .requestMatchers(HttpMethod.POST, "/auth/register", "/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/products", "/products/**", "/categories", "/categories/**",
+                    "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                .requestMatchers(HttpMethod.POST, "/products", "/categories").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/orders/*/status").hasRole("ADMIN")
+                .requestMatchers("/orders", "/orders/**", "/users/**").authenticated()
+                .anyRequest().denyAll())
+            .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class)
+            .build();
     }
 }
