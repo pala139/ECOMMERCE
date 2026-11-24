@@ -1,45 +1,21 @@
 package com.ecommerce.controller;
-
-import com.ecommerce.entity.User;
+import com.ecommerce.dto.*;
 import com.ecommerce.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * UserController handles user profile operations.
- * Why this class exists: HTTP endpoint handler for user profiles.
- * Single Responsibility: Handle HTTP requests/responses for user data.
- */
 @RestController
 @RequestMapping("/users")
-@CrossOrigin(origins = "*")
 public class UserController {
-    
-    @Autowired
-    private UserService userService;
-    
-    /**
-     * GET /users/profile - Get authenticated user's profile.
-     */
+    private final UserService users;
+    public UserController(UserService users) { this.users = users; }
     @GetMapping("/profile")
-    public ResponseEntity<User> getUserProfile(Authentication authentication) {
-        String userEmail = authentication.getPrincipal().toString();
-        User user = userService.getUserByEmail(userEmail);
-        return ResponseEntity.ok(user);
+    public UserProfile getUserProfile(Authentication auth) {
+        return UserProfile.from(users.getUserByEmail(auth.getName()));
     }
-    
-    /**
-     * PUT /users/profile - Update authenticated user's profile.
-     */
     @PutMapping("/profile")
-    public ResponseEntity<User> updateUserProfile(
-            @RequestBody User updates,
-            Authentication authentication) {
-        
-        String userEmail = authentication.getPrincipal().toString();
-        User updated = userService.updateUserProfile(userEmail, updates);
-        return ResponseEntity.ok(updated);
+    public UserProfile updateUserProfile(@Valid @RequestBody UpdateProfileRequest request, Authentication auth) {
+        return UserProfile.from(users.updateUserProfile(auth.getName(), request));
     }
 }

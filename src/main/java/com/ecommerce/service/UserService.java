@@ -1,53 +1,48 @@
 package com.ecommerce.service;
 
 import com.ecommerce.entity.User;
+import com.ecommerce.dto.UpdateProfileRequest;
+import org.springframework.transaction.annotation.Transactional;
 import com.ecommerce.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * UserService handles user profile operations.
- * Why this class exists: Separate user management from authentication.
- * Single Responsibility: User profile CRUD operations.
- */
 @Service
 public class UserService {
     
-    @Autowired
-    private UserRepository userRepository;
-    
-    /**
-     * Get user by email (usually called after JWT validation).
-     */
+    private final UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+
     public User getUserByEmail(String email) {
         return userRepository.findByEmail(email)
             .orElseThrow(() -> new RuntimeException("User not found"));
     }
-    
-    /**
-     * Update user profile (address, phone, etc).
-     */
-    public User updateUserProfile(String email, User updates) {
+
+    @Transactional
+    public User updateUserProfile(String email, UpdateProfileRequest updates) {
         User user = getUserByEmail(email);
         
         // Update only provided fields
-        if (updates.getName() != null) {
-            user.setName(updates.getName());
+        if (updates.name() != null) {
+            user.setName(updates.name());
         }
-        if (updates.getPhoneNumber() != null) {
-            user.setPhoneNumber(updates.getPhoneNumber());
+        if (updates.phoneNumber() != null) {
+            user.setPhoneNumber(updates.phoneNumber());
         }
-        if (updates.getAddress() != null) {
-            user.setAddress(updates.getAddress());
+        if (updates.address() != null) {
+            user.setAddress(updates.address());
         }
-        if (updates.getCity() != null) {
-            user.setCity(updates.getCity());
+        if (updates.city() != null) {
+            user.setCity(updates.city());
         }
-        if (updates.getState() != null) {
-            user.setState(updates.getState());
+        if (updates.state() != null) {
+            user.setState(updates.state());
         }
-        if (updates.getZipCode() != null) {
-            user.setZipCode(updates.getZipCode());
+        if (updates.zipCode() != null) {
+            user.setZipCode(updates.zipCode());
         }
         
         return userRepository.save(user);

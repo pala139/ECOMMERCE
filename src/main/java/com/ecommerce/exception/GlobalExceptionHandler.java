@@ -1,86 +1,51 @@
 package com.ecommerce.exception;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import java.time.LocalDateTime;
 
-/**
- * GlobalExceptionHandler catches exceptions from all controllers.
- * Why this class exists: Centralized exception handling avoids repeating try-catch in every controller.
- * Single Responsibility: Convert exceptions to proper HTTP responses.
- * 
- * Request flow on error:
- * 1. Controller throws RuntimeException
- * 2. @RestControllerAdvice intercepts it
- * 3. Matching @ExceptionHandler method is called
- * 4. Returns standardized error response
- * 5. Client gets JSON error with proper HTTP status
- * 
- * Interview talking point:
- * - Clean exception handling improves API usability
- * - Consistent error format helps frontend error handling
- * - Avoid exposing stack traces to clients (security)
- * - Different exceptions can have different HTTP status codes
- */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
-    /**
-     * Handle generic RuntimeException (business logic errors).
-     * Example: "User not found", "Insufficient stock"
-     */
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> handleRuntimeException(
-            RuntimeException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.BAD_REQUEST.value(),
-            ex.getMessage(),
-            request.getDescription(false).replace("uri=", "")
-        );
-        
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    @ExceptionHandler(ApiException.class)
+    ResponseEntity<ErrorResponse> api(ApiException ex, WebRequest request) {
+        return error(ex.getStatus(), ex.getMessage(), request);
     }
-    
-    /**
-     * Handle illegal argument (validation errors).
-     */
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(
-            IllegalArgumentException ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.BAD_REQUEST.value(),
-            ex.getMessage(),
-            request.getDescription(false).replace("uri=", "")
-        );
-        
-        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+    @ExceptionHandler(InsufficientStockException.class)
+    ResponseEntity<ErrorResponse> stock(InsufficientStockException ex, WebRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
-    
-    /**
-     * Handle unexpected exceptions (catch-all).
-     * This prevents stack traces from leaking to clients.
-     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException ex, WebRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+            .map(e -> e.getField() + ": " + e.getDefaultMessage()).sorted()
+            .reduce((a,b) -> a + "; " + b).orElse("Invalid request");
+        return error(HttpStatus.BAD_REQUEST, message, request);
+    }
+    @ExceptionHandler({HttpMessageNotReadableException.class, ServletRequestBindingException.class,
+        MethodArgumentTypeMismatchException.class, IllegalArgumentException.class, ArithmeticException.class})
+    ResponseEntity<ErrorResponse> badRequest(Exception ex, WebRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Invalid request", request);
+    }
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ErrorResponse> conflict(Exception ex, WebRequest request) {
+        return error(HttpStatus.CONFLICT, "Request conflicts with existing data", request);
+    }
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(
-            Exception ex,
-            WebRequest request) {
-        
-        ErrorResponse errorResponse = new ErrorResponse(
-            LocalDateTime.now(),
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "An unexpected error occurred",
-            request.getDescription(false).replace("uri=", "")
-        );
-        
-        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+    ResponseEntity<ErrorResponse> unexpected(Exception ex, WebRequest request) {
+        LOG.error("Unhandled request failure", ex);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", request);
+    }
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, String message, WebRequest request) {
+        return ResponseEntity.status(status).body(new ErrorResponse(LocalDateTime.now(),
+            status.value(), message, request.getDescription(false).replace("uri=", "")));
     }
 }
