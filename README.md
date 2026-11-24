@@ -29,6 +29,12 @@ docker compose up --build
 
 Flyway initializes a **new, empty MySQL database**. Do not point this version at a legacy database created with Hibernate auto-update without a reviewed migration and backup. Hibernate validates the schema rather than changing it automatically.
 
+## Deploy on Render
+
+The Blueprint in `render.yaml` explicitly selects free web and Key Value plans in the Singapore region. Redis is private to the workspace. Render generates the JWT signing secret. An external, fresh MySQL-compatible database is required; enter the JDBC URL, username and password in the Render Dashboard during Blueprint setup. Use TLS with an external database and do not commit credentials. Test the database's Flyway and locking compatibility before using it for this application.
+
+Free services may cold-start and are subject to provider quotas. Review any usage-based charges and set appropriate spending controls in the hosting dashboard.
+
 ## API
 
 | Method | Endpoint | Access |

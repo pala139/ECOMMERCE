@@ -1,7 +1,15 @@
 services:
+  - type: keyvalue
+    name: ecommerce-cache
+    plan: free
+    region: singapore
+    ipAllowList: []
   - type: web
     name: ecommerce-backend
     runtime: docker
+    branch: main
+    plan: free
+    region: singapore
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_DATASOURCE_URL
@@ -11,4 +19,13 @@ services:
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
+      - key: CATEGORY_CACHE_ENABLED
+        value: "true"
+      - key: SPRING_DATA_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ecommerce-cache
+          property: connectionString
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=50.0"
