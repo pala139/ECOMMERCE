@@ -7,7 +7,6 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.*;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
 import java.util.Set;
 
 @RestController
@@ -28,7 +27,7 @@ public class ProductController {
         Sort ordering = Sort.by(Sort.Direction.fromString(direction), sort);
         if (!sort.equals("id")) ordering = ordering.and(Sort.by("id"));
         Page<ProductDTO> result = products.findProducts(keyword, categoryId, PageRequest.of(page, size, ordering));
-        return new PageResponse<>(result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
+        return PageResponse.from(result);
     }
     @GetMapping("/{id}")
     public ProductDTO getProductById(@PathVariable Long id) { return products.getProductById(id); }
@@ -36,5 +35,4 @@ public class ProductController {
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody CreateProductRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(products.createProduct(request));
     }
-    public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {}
 }

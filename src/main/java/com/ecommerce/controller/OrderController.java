@@ -8,7 +8,9 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.ecommerce.exception.ApiException;
 
 @RestController
 @RequestMapping("/orders")
@@ -23,8 +25,11 @@ public class OrderController {
     }
 
     @GetMapping
-    public List<OrderDTO> getUserOrders(Authentication auth) {
-        return orders.getUserOrders(auth.getName());
+    public PageResponse<OrderDTO> getUserOrders(Authentication auth,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
+        if (page < 0 || size < 1 || size > 100) throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid pagination");
+        return PageResponse.from(orders.getUserOrders(auth.getName(), PageRequest.of(page, size,
+            Sort.by(Sort.Direction.DESC, "id"))));
     }
 
     @GetMapping("/{id}")

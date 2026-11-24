@@ -9,16 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * CreateProductRequest - what client sends when creating a product.
- * 
- * Validation:
- * - @NotBlank: Field cannot be empty
- * - @Size: Controls string length
- * - @NotNull: Field cannot be null
- * - @DecimalMin: Minimum decimal value for price
- * - @Min: Minimum integer value for stock
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -32,6 +23,7 @@ public class CreateProductRequest {
     
     @NotNull(message = "Price is required")
     @DecimalMin(value = "0.01", message = "Price must be greater than 0")
+    @jakarta.validation.constraints.Digits(integer=17, fraction=2)
     private java.math.BigDecimal price;
     
     @NotNull(message = "Stock quantity is required")

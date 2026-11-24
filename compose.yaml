@@ -13,17 +13,28 @@ services:
       retries: 30
     volumes:
       - mysql-data:/var/lib/mysql
+  redis:
+    image: redis:7.4-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   api:
     build: .
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ecommerce
       SPRING_DATASOURCE_USERNAME: ecommerce
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      CATEGORY_CACHE_ENABLED: 'true'
+      REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
     ports:
       - "127.0.0.1:8080:8080"
     depends_on:
       mysql:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 volumes:
   mysql-data:

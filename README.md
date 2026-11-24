@@ -17,7 +17,7 @@ A layered monolith keeps deployment and transaction boundaries simple. Controlle
 
 ## Run locally
 
-Prerequisites: Docker and Docker Compose. Copy `.env.example` to `.env`, replace the passwords, and generate a random JWT secret of at least 32 bytes (for example, `openssl rand -hex 32`).
+Prerequisites: Docker and Docker Compose. The Compose stack starts MySQL and Redis along with the API. Copy `.env.example` to `.env`, replace the passwords, and generate a random JWT secret of at least 32 bytes (for example, `openssl rand -hex 32`).
 
 ```sh
 docker compose up --build
@@ -40,7 +40,7 @@ Flyway initializes a **new, empty MySQL database**. Do not point this version at
 | POST | /products, /categories | Admin |
 | GET / PUT | /users/profile | Authenticated |
 | POST | /orders | Authenticated; Idempotency-Key required |
-| GET | /orders, /orders/{id} | Owner |
+| GET | /orders?page=0&size=20, /orders/{id} | Owner |
 | PUT | /orders/{id}/status | Admin |
 
 Register a customer through `POST /auth/register` and send the returned token as `Authorization: Bearer TOKEN`. Registration always assigns CUSTOMER. For local development only, create an account and promote it using a privileged database connection:
@@ -68,9 +68,13 @@ Checkout accepts:
 - A customer-scoped idempotency key and request fingerprint prevent duplicate orders on retries. Reusing a key with a changed payload returns a conflict. Replays return the existing order, including its current status.
 - Prices are captured at purchase using BigDecimal. Cancellation restores stock under locks; allowed status transitions are explicit.
 - Catalog requests have bounded pages and allowlisted sorting. Category data is fetched with an entity graph. Leading-wildcard search is suitable for small catalogs, not a replacement for full-text search.
+- Order history is paginated, with batched lazy association loading to reduce repeated queries.
+- Optional Redis cache-aside for the category list uses a two-minute TTL and invalidation after category creation. Redis failures fall back to MySQL; checkout and product stock are never cached. A concurrent cache fill can temporarily serve stale category metadata until the TTL expires.
 - Flyway owns schema changes. Secrets are supplied through environment variables. Open Session in View is disabled.
 
-## Tests
+## Tests and performance
+
+GitHub Actions runs Maven verification and publishes test and coverage reports. The optional k6 catalog smoke benchmark can be run locally with `k6 run perf/catalog.js` after starting the API. It is a starting point for measurement, not a claimed performance result.
 
 Prerequisites: Java 17, Maven and Docker (for Testcontainers). No external database credentials are required for the tests.
 
@@ -82,4 +86,4 @@ The suite includes service unit tests and MySQL-backed tests for anonymous acces
 
 ## Limitations
 
-This is a portfolio application, not a payment-processing service. It does not yet implement payment, refresh tokens, distributed caching, rate limiting, or production load benchmarks. Order history is currently unpaginated. Database locking favors correctness over maximum checkout throughput. External deployment requires a compatible database and environment configuration.
+This is a portfolio application, not a payment-processing service. It does not yet implement payment, refresh tokens, rate limiting, or production load benchmarks. The optional Redis cache is limited to category metadata. Database locking favors correctness over maximum checkout throughput. External deployment requires a compatible database and environment configuration.

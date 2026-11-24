@@ -2,7 +2,8 @@ package com.ecommerce.repository;
 
 import com.ecommerce.entity.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -13,9 +14,5 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @org.springframework.data.jpa.repository.Query("select o from Order o where o.id = :id")
     Optional<Order> findForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
 
-    // Find all orders for a specific user
-    List<Order> findByUserId(Long userId);
-    
-    // Find order by unique order number
-    Optional<Order> findByOrderNumber(String orderNumber);
+    Page<Order> findByUserId(Long userId, Pageable page);
 }

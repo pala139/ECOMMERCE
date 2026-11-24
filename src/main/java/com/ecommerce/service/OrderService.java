@@ -87,9 +87,9 @@ public class OrderService {
     }
 
     @Transactional(readOnly = true)
-    public List<OrderDTO> getUserOrders(String email) {
+    public org.springframework.data.domain.Page<OrderDTO> getUserOrders(String email, org.springframework.data.domain.Pageable page) {
         User user = users.findByEmail(email).orElseThrow(() -> notFound("User"));
-        return orders.findByUserId(user.getId()).stream().map(this::toDto).toList();
+        return orders.findByUserId(user.getId(), page).map(this::toDto);
     }
 
     @Transactional
