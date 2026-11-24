@@ -1,17 +1,25 @@
 package com.ecommerce.repository;
 
 import com.ecommerce.entity.Product;
-import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.List;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
-    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
-    @org.springframework.data.jpa.repository.Query("select p from Product p where p.id = :id")
-    java.util.Optional<Product> findForUpdate(@org.springframework.data.repository.query.Param("id") Long id);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Product p where p.id = :id")
+    Optional<Product> findForUpdate(@Param("id") Long id);
 
-    // Find all products in a category
-    List<Product> findByCategoryId(Long categoryId);
-    
-    // Find products by name (for search)
-    List<Product> findByNameContainingIgnoreCase(String name);
+    @Override
+    @EntityGraph(attributePaths = "category")
+    Page<Product> findAll(Pageable page);
+
+    @EntityGraph(attributePaths = "category")
+    Page<Product> findByNameContainingIgnoreCase(String keyword, Pageable page);
+
+    @EntityGraph(attributePaths = "category")
+    Page<Product> findByCategoryId(Long categoryId, Pageable page);
 }

@@ -146,7 +146,7 @@ class AuthServiceTest {
             authService.login(request);
         });
         
-        assertEquals("User not found", exception.getMessage());
+        assertEquals("Invalid credentials", exception.getMessage());
     }
     
     @Test
@@ -169,7 +169,7 @@ class AuthServiceTest {
             authService.login(request);
         });
         
-        assertEquals("Invalid password", exception.getMessage());
+        assertEquals("Invalid credentials", exception.getMessage());
     }
     
     // ==================== EDGE CASES ====================

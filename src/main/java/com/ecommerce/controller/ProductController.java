@@ -1,52 +1,40 @@
 package com.ecommerce.controller;
 
-import com.ecommerce.dto.ProductDTO;
-import com.ecommerce.dto.CreateProductRequest;
+import com.ecommerce.dto.*;
+import com.ecommerce.exception.ApiException;
 import com.ecommerce.service.ProductService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.*;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/products")
 public class ProductController {
-    
-    private final ProductService productService;
-
-    public ProductController(ProductService productService) {
-        this.productService = productService;
-    }
-
+    private final ProductService products;
+    public ProductController(ProductService products) { this.products = products; }
 
     @GetMapping
-    public ResponseEntity<List<ProductDTO>> getAllProducts() {
-        List<ProductDTO> products = productService.getAllProducts();
-        return ResponseEntity.ok(products);
+    public PageResponse<ProductDTO> list(@RequestParam(defaultValue="0") int page,
+            @RequestParam(defaultValue="20") int size, @RequestParam(defaultValue="id") String sort,
+            @RequestParam(defaultValue="asc") String direction,
+            @RequestParam(required=false) String keyword, @RequestParam(required=false) Long categoryId) {
+        if (page < 0 || size < 1 || size > 100 || !Set.of("id","name","price").contains(sort)
+                || !Set.of("asc","desc").contains(direction)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid pagination or sort");
+        }
+        Sort ordering = Sort.by(Sort.Direction.fromString(direction), sort);
+        if (!sort.equals("id")) ordering = ordering.and(Sort.by("id"));
+        Page<ProductDTO> result = products.findProducts(keyword, categoryId, PageRequest.of(page, size, ordering));
+        return new PageResponse<>(result.getContent(), page, size, result.getTotalElements(), result.getTotalPages());
     }
-
     @GetMapping("/{id}")
-    public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
-        ProductDTO product = productService.getProductById(id);
-        return ResponseEntity.ok(product);
-    }
-
-    @GetMapping("/search")
-    public ResponseEntity<List<ProductDTO>> searchProducts(@RequestParam String keyword) {
-        List<ProductDTO> products = productService.searchProducts(keyword);
-        return ResponseEntity.ok(products);
-    }
-
-    @GetMapping("/category/{categoryId}")
-    public ResponseEntity<List<ProductDTO>> getProductsByCategory(@PathVariable Long categoryId) {
-        List<ProductDTO> products = productService.getProductsByCategory(categoryId);
-        return ResponseEntity.ok(products);
-    }
-
+    public ProductDTO getProductById(@PathVariable Long id) { return products.getProductById(id); }
     @PostMapping
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody CreateProductRequest request) {
-        ProductDTO product = productService.createProduct(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(product);
+        return ResponseEntity.status(HttpStatus.CREATED).body(products.createProduct(request));
     }
+    public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {}
 }
