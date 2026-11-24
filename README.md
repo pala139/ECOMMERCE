@@ -74,7 +74,7 @@ Checkout accepts:
 
 ## Tests and performance
 
-GitHub Actions runs Maven verification and publishes test and coverage reports. The optional k6 catalog smoke benchmark can be run locally with `k6 run perf/catalog.js` after starting the API. It is a starting point for measurement, not a claimed performance result.
+GitHub Actions runs Maven verification and publishes test and coverage reports. The CI smoke job starts a disposable Docker Compose stack, seeds 100 categories and 1,000 products, and compares cached and uncached catalog requests (10 virtual users, 30 seconds per mode). Measured latency and throughput are published as a workflow summary and JSON artifacts. Results from shared runners are illustrative, not production capacity estimates. Run `k6 run perf/catalog.js` locally against a running API for a smoke benchmark.
 
 Prerequisites: Java 17, Maven and Docker (for Testcontainers). No external database credentials are required for the tests.
 

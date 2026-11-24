@@ -29,3 +29,42 @@ jobs:
             target/surefire-reports/
             target/site/jacoco/
           if-no-files-found: ignore
+
+  smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy isolated Docker Compose stack
+        run: |
+          printf 'DB_PASSWORD=%s\nDB_ROOT_PASSWORD=%s\nJWT_SECRET=%s\n' "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" "$(openssl rand -hex 32)" > .env
+          docker compose up -d --build
+          bash perf/wait-for-api.sh
+      - name: Seed synthetic catalog
+        run: |
+          python3 perf/seed-catalog.py | docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql -u "$MYSQL_USER" "$MYSQL_DATABASE"'
+          curl --fail --silent http://localhost:8080/products?size=20 | jq -e '.totalElements == 1000 and (.content | length) == 20'
+      - name: Measure uncached and cached catalog requests
+        run: |
+          mkdir -p perf/results
+          docker pull grafana/k6:0.57.0
+          for mode in false true; do
+            CATEGORY_CACHE_ENABLED="$mode" docker compose up -d --no-deps --force-recreate api
+            bash perf/wait-for-api.sh
+            curl --fail --silent http://localhost:8080/categories > /dev/null
+            docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work grafana/k6:0.57.0 run --summary-export="/work/perf/results/cache-$mode.json" perf/catalog.js
+          done
+          python3 perf/report.py perf/results/cache-false.json perf/results/cache-true.json | tee perf/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-benchmark
+          path: perf/results/
+          if-no-files-found: ignore
+      - name: Show deployment logs and clean up
+        if: always()
+        run: |
+          docker compose logs --no-color api || true
+          docker compose down -v
