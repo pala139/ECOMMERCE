@@ -1,42 +1,8 @@
-# Maven
 target/
-.classpath
-.project
-.settings/
-*.class
-*.jar
-*.war
-
-# IDE
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Build
-build/
-out/
-
-# Logs
+*.iml
 *.log
-nohup.out
-
-# Environment
 .env
 .env.local
-
-# Generated documentation (local reference only)
-START_HERE.txt
-PROJECT_SUMMARY.md
-PHASE1_COMPLETE.md
-PHASE1_IMPLEMENTATION.md
-PHASE1_QUICK_REFERENCE.md
-JAVA_DEVELOPER_ROADMAP.md
-DIRECTORY_TREE.md
-FILE_STRUCTURE.md
-INDEX.md
-QUICK_REFERENCE.md
-ARCHITECTURE_GUIDE.md
-TESTING_GUIDE.md
+.DS_Store
